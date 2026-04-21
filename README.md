@@ -48,7 +48,7 @@ We evaluate GPT-5-mini on a 100-instance subset of SWE-bench Verified using the 
 
 Full agent trajectories (.traj.json files) are large and hosted separately:
 
-**HuggingFace**: [TODO: add link after upload]
+**HuggingFace**: [autoprogrammer/cs527-optical-compression-trajectories](https://huggingface.co/datasets/autoprogrammer/cs527-optical-compression-trajectories)
 
 These contain the complete message history for each instance × condition, including all tool calls, observations, and model responses.
 
