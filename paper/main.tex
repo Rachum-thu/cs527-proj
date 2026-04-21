@@ -1,0 +1,149 @@
+\documentclass[sigconf,authorversion,nonacm]{acmart}
+
+%%% ADDED PACKAGES %%%
+\usepackage{url}
+\usepackage[belowskip=0pt,aboveskip=5pt]{subcaption}
+\usepackage{listings}
+\usepackage{enumitem}
+\usepackage{booktabs}
+\usepackage{xspace}
+\usepackage{makecell}
+\usepackage{amsmath}
+\usepackage{pifont}
+\usepackage{balance}
+\usepackage{soul}
+\usepackage{microtype}    
+\usepackage[ruled,vlined,linesnumbered]{algorithm2e}
+\usepackage[noend]{algpseudocode}
+\usepackage{amsthm}
+\usepackage{comment}
+\usepackage{xr}
+\usepackage{color}
+\usepackage{setspace}
+\usepackage{listings}
+\usepackage{lipsum}
+\usepackage{adjustbox}
+\usepackage{array,multirow,graphicx}
+\usepackage{float}
+\usepackage{graphicx}
+\usepackage{tikz}
+\usetikzlibrary{shapes,arrows.meta,positioning,fit,backgrounds,calc}
+
+\lstdefinestyle{code}{
+  backgroundcolor=\color{gray!4},
+  commentstyle=\color{codegray},
+  keywordstyle=\color{codepurple},
+  numberstyle=\tiny\color{codegray},
+  stringstyle=\color{codegray},
+  basicstyle=\ttfamily\footnotesize,
+  breakatwhitespace=false,         
+  breaklines=true,                 
+  captionpos=b,                    
+  keepspaces=true,                 
+  numbers=left,                    
+  numbersep=5pt,                  
+  showspaces=false,                
+  showstringspaces=false,
+  showtabs=false,                  
+  tabsize=2,
+  % escapeinside=||
+}
+\lstset{style=code}
+
+\lstset{escapeinside={<@}{@>}}
+%%% ADDED Commands %%%
+\definecolor{comment}{rgb}{0,0.6,0}
+\definecolor{dgray}{gray}{0.25}
+\definecolor{strings}{RGB}{0,0,128}
+\definecolor{backcolour}{rgb}{0.95,0.95,0.92}
+\definecolor{keywords}{RGB}{127,0,85}
+\definecolor{darkred}{RGB}{139,0,0}
+\definecolor{darkyellow}{RGB}{204,204,0}
+\definecolor{darkblue}{rgb}{0.0, 0.0, 0.55}
+\definecolor{vividviolet}{rgb}{0.62, 0.0, 1.0}
+\definecolor{fuchsia}{rgb}{1.0, 0.0, 1.0}
+\definecolor{shockingpink}{rgb}{0.99, 0.06, 0.75}
+\definecolor{darkBlue}{RGB}{0, 0, 205}
+\lstset{breaklines=true}
+\captionsetup[lstlisting]{font={tiny}}
+\definecolor{problemblue}{RGB}{100,134,158}
+\definecolor{idiomsgreen}{RGB}{0,162,0}
+\definecolor{exercisebgblue}{rgb}{0,  .69,  .941}
+\definecolor{deepgreen}{rgb}{0.0, 0.5, 0.0}
+\definecolor{codegreen}{rgb}{0,0.6,0}
+\definecolor{codegray}{rgb}{0.5,0.5,0.5}
+\definecolor{codepurple}{rgb}{0.58,0,0.82}
+\definecolor{backcolour}{rgb}{0.95,0.95,0.92}
+\definecolor{redColor}{RGB}{255,0,0}
+\definecolor{Gray}{gray}{0.1}
+\definecolor{CadetBlue}{RGB}{243.0,42.1,134.0}
+
+%%% Packages for Algorithms %%%
+\usepackage[linesnumbered,ruled,vlined]{algorithm2e}
+\SetKwInput{KwInput}{Input}                % Set the Input
+\SetKwInput{KwInputs}{Inputs}                % Set the Input
+\SetKwInput{KwOutput}{Output} 
+
+\newcommand\para[1]{\smallskip\noindent\textbf{#1}}             % set the Output
+
+\begin{document}
+
+\title{CS 527 Research Project Report: Group-9}
+
+\author{Runchu Tian, Vikas Reddy}
+\affiliation{
+    \institution{University of Illinois at Urbana-Champaign}
+    \country{}
+}
+\email{runchut2,vredd4@illinois.edu}
+
+\begin{abstract}
+Coding LLMs in agentic settings process large volumes of source code through tool outputs such as file reads and search results. This code context, passed as text tokens, can be vast---easily reaching hundreds of thousands of tokens per session. Recent ``optical compression'' methods suggest that rendering text as images and feeding them to a vision-capable LLM may offer a different cost--performance tradeoff. We study a focused question: without any post-training, can an agentic coding LLM read source code from images as effectively as from text? We evaluate GPT-5-mini on a 100-instance subset of SWE-bench Verified using the mini-swe-agent framework, comparing a standard text-based agent against an optical variant that renders code-heavy tool outputs as monospace images. To determine whether the model can reliably read code from images, we first conduct a pilot study sweeping rendering parameters and establish that GPT-5-mini achieves $\le$1.5\% character error rate on rendered Python code and 100\% identifier recall (12pt font, 120-character width). On the main benchmark, both conditions resolve exactly 51 of 100 instances (51\%), with largely overlapping but not identical success sets (41 shared, 10 unique to each). The optical condition consumes 29\% more input tokens and costs approximately 1.9$\times$ more per instance. We draw two conclusions. First, optical code input without any post-training is fully viable: a vision-capable model can read and reason about code from images as accurately as from text. Second, image tokens are currently more expensive than text tokens, so realizing the cost-saving potential of optical compression will likely require post-training to reduce the number of vision tokens per image---an avenue explored by concurrent work such as DeepSeek-OCR.
+\end{abstract}
+
+\maketitle
+
+\input{Sections/TeamInfo}
+\input{Sections/introduction}
+\input{Sections/approach}
+\input{Sections/evaluation}
+\input{Sections/related-work}
+\input{Sections/threats}
+\input{Sections/conclusion}
+
+\balance
+\bibliographystyle{ACM-Reference-Format}
+\bibliography{reference}
+
+\appendix
+\section{Transcription Prompt}
+The following prompt was used in the image readability pilot (Section~\ref{sec:rendering-config}) to evaluate GPT-5-mini's code-reading fidelity:
+
+\begin{quote}
+\small\texttt{Transcribe the exact text content shown in this image. Preserve all whitespace, indentation, symbols, and formatting exactly as shown. Do not add any explanation or commentary --- output ONLY the transcribed text.}
+\end{quote}
+
+\section{Instance Selection}
+The 100-instance subset was constructed from SWE-bench Verified using proportional stratified sampling across all 12 repositories (seed=42). Table~\ref{tab:repo-dist} shows the allocation. The full list of instance IDs and the selection script (\texttt{scripts/build\_subset\_100.py}) are available in the artifact repository.
+
+\begin{table}[h]
+\centering
+\caption{Repository distribution of the 100-instance subset.}
+\label{tab:repo-dist}
+\small
+\begin{tabular}{lr|lr}
+\toprule
+\textbf{Repository} & \textbf{N} & \textbf{Repository} & \textbf{N} \\
+\midrule
+django       & 44 & pydata/xarray   & 4 \\
+sympy        & 15 & pytest-dev      & 4 \\
+sphinx-doc   &  9 & psf/requests    & 2 \\
+matplotlib   &  7 & pylint-dev      & 2 \\
+scikit-learn &  6 & mwaskom/seaborn & 1 \\
+astropy      &  5 & pallets/flask   & 1 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+
+\end{document}

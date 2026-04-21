@@ -1,0 +1,253 @@
+\section{Experimental Evaluation}
+
+We aim to answer the following research questions:
+\begin{itemize}[leftmargin=*]
+  \item \textbf{RQ1 (Effectiveness).} Does providing code context as images affect patch success on SWE-bench Verified compared to plain-text context?
+  \item \textbf{RQ2 (Efficiency).} How does optical encoding affect token usage, dollar cost, and wall clock time?
+  \item \textbf{RQ3 (Fidelity).} How accurately can GPT-5-mini read Python source code from rendered images, and which code features are most error-prone?
+\end{itemize}
+
+\subsection{Evaluation Setting}
+
+\para{Benchmark and task.}
+We evaluate on a 100-instance stratified subset of SWE-bench Verified \cite{openai2024swebenchverified}, drawn from all 12 repositories in the dataset using proportional allocation (see Appendix for the full instance list). Each instance provides a repository snapshot and a GitHub issue description; the agent must produce a patch that fixes the issue \cite{jimenez2023swebench}.
+
+\para{Test-based evaluation.}
+We apply each generated patch and run the benchmark's containerized test suite, following the official SWE-bench protocol: \texttt{FAIL\_TO\_PASS} tests must pass, and \texttt{PASS\_TO\_PASS} tests must remain passing \cite{jimenez2023swebench}.
+
+\para{Model and agent.}
+We use GPT-5-mini (\texttt{gpt-5-mini-2025-08-07}) as the backbone model within the \texttt{mini-swe-agent} framework. The agent has a 50-step limit and a \$3 cost limit per instance. All other settings (prompt template, tool interface, environment) are identical across conditions.
+
+\para{Conditions.}
+We compare two conditions:
+\begin{itemize}[leftmargin=*]
+  \item \textbf{Text.} Standard setup---all tool outputs are returned as plain text.
+  \item \textbf{Optical.} Code-heavy tool outputs (length $>$ 2{,}000 characters and code ratio $>$ 20\%) are rendered as monospace images and presented via a follow-up user message; all other outputs remain as text. Issue-description code blocks are also rendered as images.
+\end{itemize}
+Both conditions use identical prompts except that the optical prompt includes one additional system instruction (``Some code content may be provided as images'') and an explicit ``do not \texttt{git commit}'' directive (see Section~\ref{sec:prompt-alignment}).
+
+\para{Metrics.}
+For each instance $\times$ condition, we record: resolve status (pass/fail), total input and output tokens (summed across all agent steps), dollar cost, wall clock time (from first to last model query timestamp), number of agent steps, and---for the optical condition---the number of images rendered and the fraction of tool outputs rendered as images.
+
+\para{Readability confirmation.}
+The pilot study in Section~\ref{sec:rendering-config} establishes that GPT-5-mini can reliably read Python code from our rendered images: CER $\le$1.5\% on standard code, 100\% identifier recall, and 100\% indentation accuracy at the selected configuration (12pt, 120-character width). This confirms that downstream performance differences, if any, are not attributable to the model's inability to parse the images.
+
+\para{Prompt alignment.}\label{sec:prompt-alignment}
+In an initial 20-instance pilot, we observed that image inputs caused GPT-5-mini to alter its workflow behavior: the model ran \texttt{git commit} before generating the patch in 85--90\% of optical runs versus only 10\% of text runs, causing \texttt{git diff} to return empty output. Table~\ref{tab:prompt-alignment} shows this effect and its resolution.
+
+\begin{table}[t]
+\centering
+\caption{Prompt alignment pilot (20 instances). Adding an explicit ``do not commit'' instruction eliminates the behavioral divergence.}
+\label{tab:prompt-alignment}
+\small
+\begin{tabular}{llccc}
+\toprule
+\textbf{Condition} & \textbf{Prompt} & \textbf{Git commit} & \textbf{Empty patch} & \textbf{Avg steps} \\
+\midrule
+Text          & before fix & 2/20 (10\%)  & 1/20 (5\%)  & 23.4 \\
+Optical       & before fix & 17/20 (85\%) & 4/20 (20\%) & 20.1 \\
+\midrule
+Optical       & after fix  & 0/20 (0\%)   & 1/20 (5\%)  & 17.9 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+After adding the instruction ``Do NOT run \texttt{git add} or \texttt{git commit}; your changes must remain as uncommitted modifications,'' the commit behavior dropped to 0\% and the empty-patch rate matched the text baseline. All main experiments use the fixed prompt. This finding is noteworthy in its own right: multimodal inputs can alter model behavior in ways entirely unrelated to the content, a confound that must be controlled in any fair comparison.
+
+
+% ===================================================================
+\subsection{Image Readability Pilot}\label{sec:rendering-config}
+% ===================================================================
+
+Before the main experiment, we conducted a pilot study to determine image rendering parameters that give the best fidelity-to-cost tradeoff. The question is: \emph{at what font size, page width, and image height can GPT-5-mini accurately read Python code from images?}
+
+\para{Motivation.}
+If the model cannot reliably recover code from images, any downstream performance difference would be uninterpretable---we would not know whether failures stem from optical compression itself or from poor rendering choices. This section establishes a lower bound on image readability before proceeding to the main evaluation.
+
+\para{Test samples.}
+We analyzed the SWE-bench Verified dataset to understand code length distributions: the median patch is 22 lines and the 90th percentile is 77 lines. Guided by this, we selected six Python source code samples (46--155 lines) covering import-heavy modules, nested control flow with exception handling, and regex/special-character-heavy code.
+
+\para{Metrics.}
+For each rendering configuration, we prompted GPT-5-mini to transcribe the rendered image and compared the transcription against the ground truth using: character error rate (CER), identifier recall (fraction of Python names recovered), and indentation accuracy (fraction of matching lines with correct leading whitespace).
+
+\para{Round 1: Font size sweep.}
+We tested seven font sizes (8--20pt) at a fixed 100-character page width. Table~\ref{tab:fontsize-sweep} shows the results.
+
+\begin{table}[t]
+\centering
+\caption{Font size sweep (page width = 100 chars, 80 lines/image). CER and token cost as a function of font size.}
+\label{tab:fontsize-sweep}
+\small
+\begin{tabular}{lcccc}
+\toprule
+\textbf{Font} & \textbf{Avg CER} & \textbf{Id Recall} & \textbf{Indent Acc} & \textbf{Avg Tokens} \\
+\midrule
+f8   & 0.084 & 0.97 & 0.60 &  538 \\
+f10  & 0.046 & 0.99 & 0.83 &  700 \\
+\textbf{f12}  & \textbf{0.023} & \textbf{0.99} & \textbf{0.99} & \textbf{1{,}038} \\
+f14  & 0.019 & 0.99 & 0.82 & 1{,}338 \\
+f16  & 0.030 & 0.99 & 0.69 & 1{,}853 \\
+f18  & 0.018 & 1.00 & 0.83 & 2{,}161 \\
+f20  & 0.027 & 0.99 & 0.82 & 2{,}349 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+CER drops sharply from f8 (8.4\%) to f12 (2.3\%), indicating a threshold below which the vision encoder cannot resolve monospace characters. Above f14, CER does not consistently improve, while tokens scale linearly. Identifier recall remains $\ge$0.97 at all sizes. We selected \textbf{12pt}: CER within 0.4 percentage points of the best (18pt), at 52\% fewer tokens.
+
+\para{Round 2: Page width and image height.}
+Error analysis revealed that the dominant error at f12/w100 was \emph{line truncation}: lines exceeding 100 characters wrapped in the image, and the model reproduced the break. We tested wider pages (120, 140 chars) and taller images (120 lines). Table~\ref{tab:pagewidth} shows the results.
+
+\begin{table}[t]
+\centering
+\caption{Effect of page width and image height on fidelity (at 12pt and 14pt).}
+\label{tab:pagewidth}
+\small
+\begin{tabular}{lcccc}
+\toprule
+\textbf{Setting} & \textbf{CER} & \textbf{Indent} & \textbf{Id Recall} & \textbf{Tokens} \\
+\midrule
+f12, w100        & 0.023 & 0.99 & 0.99 & 1{,}038 \\
+\textbf{f12, w120} & \textbf{0.023} & \textbf{1.00} & \textbf{1.00} & \textbf{1{,}160} \\
+f14, w120        & 0.018 & 0.83 & 1.00 & 1{,}524 \\
+f14, w140        & 0.015 & 0.83 & 1.00 & 1{,}762 \\
+\midrule
+f12, l120        & 0.025 & 0.83 & 0.99 & 1{,}009 \\
+f14, l120        & 0.021 & 0.74 & 0.99 & 1{,}306 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+Widening to 120 characters eliminated truncation for $>$97\% of SWE-bench code lines and pushed indentation accuracy to 1.00 at f12. Further widening to 140 chars yielded marginal improvement at 52\% higher cost. Increasing image height from 80 to 120 lines \emph{worsened} quality: indentation accuracy dropped from 0.99 to 0.83, consistent with a ``lost at the bottom'' effect where the vision encoder loses fidelity in tall images.
+
+\para{Error patterns.}
+Two residual error modes persist at the selected configuration (f12, w120, 80 lines/image).
+
+\emph{Regex rewriting.} The model does not transcribe complex regex patterns character-by-character; instead, it parses the pattern semantically and regenerates what it considers an equivalent expression. Table~\ref{tab:regex-rewrite} shows three examples from our test suite. In each case, the transcribed regex captures the same language class as the original but uses different grouping or quantifier syntax. This behavior inflates CER on regex-heavy code ($\sim$9\% vs.\ $\sim$1\% on standard code) but does not necessarily indicate a failure of understanding---the model demonstrably comprehends the pattern's intent.
+
+\begin{table}[t]
+\centering
+\caption{Regex rewriting: the model generates semantically similar but syntactically different expressions. Differences are underlined.}
+\label{tab:regex-rewrite}
+\small
+\begin{tabular}{p{3.6cm}p{3.6cm}}
+\toprule
+\textbf{Ground truth} & \textbf{Transcription} \\
+\midrule
+\texttt{@(\textbackslash w+\ul{(?:\textbackslash.\textbackslash w+)*(?:\textbackslash([{\^{}})\linebreak]*\textbackslash))?})\textbackslash s*\$} &
+\texttt{@(\textbackslash w+\ul{(\textbackslash.\textbackslash w+)*)\textbackslash s*(\textbackslash([{\^{}})\linebreak]*\textbackslash))?}\textbackslash s*\$} \\
+\midrule
+\texttt{{\^{}}(?:from\textbackslash s+\ul{([\textbackslash w.]+)}\textbackslash s+)?\linebreak import\textbackslash s+\ul{(.+)}\$} &
+\texttt{{\^{}}\textbackslash s*(?:from\textbackslash s+\ul{[\textbackslash w\textbackslash.]+}\textbackslash s+)?\linebreak import\textbackslash s+\ul{[\textbackslash w\textbackslash*,\textbackslash s]+}} \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\emph{Header injection.} When content spans multiple images, the model occasionally inserts the header from the next image (e.g., ``\texttt{filename.py (part 2/2)}'') into the transcription output. This is a predictable, strippable artifact.
+
+Table~\ref{tab:per-sample} shows per-sample CER at the final configuration.
+
+\begin{table}[t]
+\centering
+\caption{Per-sample CER at f12/w120. Identifier recall is 1.00 for all samples.}
+\label{tab:per-sample}
+\small
+\begin{tabular}{llcc}
+\toprule
+\textbf{Sample} & \textbf{Feature} & \textbf{Lines} & \textbf{CER} \\
+\midrule
+dense\_imports      & imports, dataclass    & 46  & 0.1\% \\
+agent\_short        & class, type hints     & 50  & 1.5\% \\
+special\_chars      & regex, escapes        & 58  & 9.4\% \\
+complex\_logic      & nested logic, f-str   & 96  & 1.1\% \\
+agent\_medium       & class, URLs           & 100 & 1.0\% \\
+agent\_full         & full module           & 155 & 0.9\% \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\para{Selected configuration.}
+We fix \textbf{12pt font, 120-character page width, 80 lines per image} for all subsequent experiments. This achieves CER $\le$1.5\% (excluding the regex outlier) with perfect indentation accuracy and identifier recall, at 1{,}160 tokens per sample.
+
+
+% ===================================================================
+\subsection{Main Results}\label{sec:eval-results}
+% ===================================================================
+
+Table~\ref{tab:main-results} presents the main results on 100 SWE-bench Verified instances.
+
+\begin{table}[t]
+\centering
+\caption{Main results: Text vs.\ Optical on 100 SWE-bench Verified instances.}
+\label{tab:main-results}
+\small
+\begin{tabular}{lcc}
+\toprule
+\textbf{Metric} & \textbf{Text} & \textbf{Optical} \\
+\midrule
+Instances resolved       & 51/100 (51\%) & 51/100 (51\%) \\
+Patches with content     & 96/100        & 98/100 \\
+Limits exceeded          & 0             & 2 \\
+\midrule
+Avg input tokens         & 292{,}060     & 376{,}722 \\
+Avg output tokens        & 5{,}143       & 5{,}596 \\
+Avg images per instance  & ---           & 14.5 \\
+Avg agent steps          & 21.3          & 19.8 \\
+Avg cost per instance    & \$0.03        & \$0.06 \\
+Total cost (100 inst.)   & \$3.25        & \$6.25 \\
+Avg wall clock (s)       & 120.8         & 165.0 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+
+\para{RQ1: Effectiveness.}
+Both conditions resolve exactly 51 of 100 instances, yielding identical 51\% resolve rates. However, the resolved sets are not identical. Table~\ref{tab:overlap} breaks down the overlap.
+
+\begin{table}[t]
+\centering
+\caption{Overlap analysis: instance-level agreement between Text and Optical.}
+\label{tab:overlap}
+\small
+\begin{tabular}{lc}
+\toprule
+\textbf{Category} & \textbf{Count} \\
+\midrule
+Both resolved (agree)        & 41 \\
+Neither resolved (agree)     & 39 \\
+Text only (Text $>$ Optical) & 10 \\
+Optical only (Optical $>$ Text) & 10 \\
+\midrule
+Total agreement              & 80/100 (80\%) \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+The two conditions agree on 80\% of instances, with 10 instances uniquely solved by each. This symmetric disagreement pattern suggests that optical encoding does not systematically help or hurt: the model is equally capable of reasoning from either modality, but introduces different variance in each.
+
+\para{Disagreement analysis.}
+We examined the 20 disagreement instances for systematic patterns. The optical-only set is dominated by Django instances (7/10), compared to only 3/10 in the text-only set. The text-only set includes more instances from repositories with complex mathematical notation (Sympy: 3/10, xarray: 3/10). One hypothesis is that Django's highly standardized code style (consistent indentation, naming conventions, docstring patterns) is particularly well-suited to visual parsing, while mathematical/scientific code with dense symbolic expressions may lose precision in image rendering. However, the small sample size (10 per group) limits the statistical power of this comparison.
+
+We also note that GPT-5-mini does not support \texttt{temperature=0}, so all outputs involve sampling noise. Some of the 20 disagreement instances may simply reflect run-to-run variance rather than genuine modality effects. Disentangling these factors would require multiple runs per instance per condition, which we leave to future work.
+
+\para{RQ2: Efficiency.}
+The optical condition is more expensive on every efficiency metric. Input tokens increase by 29\% (376K vs.\ 292K) because image tokens are less dense than text tokens---the same 240 lines of code that occupy $\sim$2{,}000 text tokens require $\sim$3{,}500 image tokens. Dollar cost nearly doubles (\$0.06 vs.\ \$0.03), reflecting both the higher token count and the typically higher per-token price of image inputs. Wall clock time increases by 37\% (165s vs.\ 121s), attributable to image rendering overhead and larger payloads.
+
+However, the optical agent takes \emph{fewer} steps on average (19.8 vs.\ 21.3). One possible explanation is that code images provide a more visually salient overview of file structure, allowing the model to locate relevant sections faster. We note that this step reduction is not large enough to offset the per-step token increase.
+
+These results highlight an important distinction: optical encoding is \emph{feasible} (equivalent task performance) but not yet \emph{cheaper}. The cost overhead stems from the current vision tokenization scheme, where image tokens are less dense than text tokens. Realizing actual cost savings would require post-training to compress vision token counts---for example, DeepSeek-OCR \cite{wei2025deepseekocr} achieves 10$\times$ compression ratios with a trained encoder, which could potentially make optical encoding cost-competitive or even cheaper than text.
+
+\para{RQ3: Fidelity and code detection.}
+In the optical condition, 25\% of tool outputs are classified as code and rendered as images (92/366 in the 20-instance pilot). On the full 100-instance run, the optical agent rendered an average of 14.5 images per instance. The code detection heuristic (length $>$ 2{,}000 chars and code ratio $>$ 20\%) produces very few false positives: only 3 out of 92 rendered outputs in the pilot were from non-standard commands (Python script executions whose output happened to contain code-like patterns), and all three were arguably appropriate to render.
+
+The pilot study (Section~\ref{sec:rendering-config}) established that CER on standard Python code is $\le$1.5\% with 100\% identifier recall. The main experiment confirms that this fidelity level is sufficient: the 51\% resolve rate matches the text baseline, indicating that any character-level errors introduced by optical encoding do not materially affect the model's ability to understand code and generate correct patches.
+
+
+\para{Case studies.}
+We examine three instances to illustrate the qualitative differences between conditions.
+
+\emph{Optical succeeds, text fails (\texttt{django-13401}):} The issue concerns Django's \texttt{Field} class ordering behavior. Both agents read the same source file (\texttt{fields/\_\_init\_\_.py}), but followed different strategies. The optical agent (14 steps) performed targeted searches for \texttt{\_\_eq\_\_}/\texttt{\_\_hash\_\_}/\texttt{\_\_lt\_\_} methods and ran verification tests before submitting, producing a correct patch. The text agent (11 steps) applied a patch more quickly but skipped edge-case verification, resulting in a patch that failed the test suite. This suggests that the visual layout may have helped the optical agent perceive the method structure more holistically, leading to more thorough verification.
+
+\emph{Text succeeds, optical fails (\texttt{django-11532}):} The issue involves a change in Django's database backend. The text agent (12 steps) identified and fixed the issue correctly. The optical agent (16 steps) read the same code and produced a patch of similar length, but the fix was subtly incorrect---the generated patch did not fully address the test requirements. This illustrates that while optical encoding preserves code readability, the model's reasoning from visual input can occasionally diverge, leading to different (and sometimes wrong) solution paths.
+
+\emph{Both succeed, different paths (\texttt{astropy-14995}):} Both agents resolved this Astropy issue, but the optical agent did so in 13 steps compared to the text agent's 21 steps---a 38\% reduction. Inspecting the trajectories, the text agent explored several unrelated files before locating the correct one, while the optical agent navigated more directly. The optical agent processed 7 code images (versus raw text), yet arrived at the correct fix faster. This case illustrates the ``fewer steps'' trend observed in the aggregate data (19.8 vs.\ 21.3 average steps) and suggests that the spatial layout of code images may sometimes aid navigation efficiency, even though the overall token cost is higher.

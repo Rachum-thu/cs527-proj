@@ -1,0 +1,17 @@
+\section{Conclusion}
+
+We evaluated optical compression---rendering source code as monospace images---as a drop-in replacement for text-based code input in an agentic software engineering pipeline. On a 100-instance subset of SWE-bench Verified using GPT-5-mini, the optical condition matched the text baseline exactly (51\% resolve rate each), with 80\% instance-level agreement and a symmetric 10/10 split of unique successes.
+
+We draw two main conclusions. First, \textbf{optical code input without post-training is fully viable}: GPT-5-mini's vision encoder can read and reason about Python source code from rendered images with the same effectiveness as from text. Our readability pilot confirms this at the character level ($\le$1.5\% CER, 100\% identifier recall), and the main experiment confirms it at the task level (identical resolve rates). This result is encouraging for the broader vision of optical compression: the fundamental capability is already present in current vision-capable models.
+
+Second, \textbf{image tokens are currently more expensive than text tokens}, so optical encoding does not yet deliver cost savings. The optical agent consumed 29\% more input tokens and cost 1.9$\times$ more per instance (\$0.06 vs.\ \$0.03). This overhead arises because current vision tokenizers produce more tokens per unit of information than text tokenizers. Bridging this gap will likely require post-training to compress vision token counts---concurrent work such as DeepSeek-OCR \cite{wei2025deepseekocr} achieves 10$\times$ compression ratios with a trained encoder, which could make optical encoding not only feasible but cost-competitive.
+
+\para{Contributions.}
+\begin{itemize}[leftmargin=*]
+  \item A readability pilot study establishing GPT-5-mini's code-reading fidelity from images, including the discovery that the model semantically rewrites regex patterns rather than transcribing them.
+  \item A controlled comparison demonstrating that optical code input achieves equivalent resolve rates to text in an agentic setting without any post-training, establishing feasibility.
+  \item An analysis showing that while feasible, optical encoding is currently more expensive, motivating future work on trained visual encoders to achieve cost-competitive optical compression.
+\end{itemize}
+
+\para{Future work.}
+The most impactful next step is to combine our zero-shot optical encoding with a trained visual encoder (e.g., DeepSeek-OCR \cite{wei2025deepseekocr} or AgentOCR \cite{feng2026agentocr}) that reduces vision token counts, potentially achieving both the feasibility demonstrated here and actual cost savings. Other directions include: evaluating on additional models (Gemini, Claude) to test generalizability; hybrid approaches that render only long outputs as images while keeping short outputs as text; multiple runs per instance to disentangle modality effects from sampling noise; and extending to other languages and task types (code completion, test generation).

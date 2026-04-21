@@ -1,0 +1,6 @@
+{
+  "name": "agents_default_medium",
+  "description": "Medium code: full agent class ~100 lines",
+  "lines": 100,
+  "chars": 3763
+}
