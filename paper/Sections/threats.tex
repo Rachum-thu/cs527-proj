@@ -3,7 +3,7 @@
 \para{Internal validity.}
 Our code detection heuristic (code ratio $>$ 20\%, length $>$ 2{,}000 characters) is a simple rule that may produce false positives (rendering non-code outputs as images) or false negatives (missing code outputs). In our 20-instance pilot, only 3 of 92 rendered outputs were borderline cases (Python script outputs), and manual inspection confirmed they contained code-like content. A more sophisticated classifier could improve precision, but would introduce its own complexity and potential confounds.
 
-The image rendering pipeline introduces design choices---font size, page width, line wrapping---that were fixed via the pilot study. A different specification might yield different results. We mitigate this by selecting parameters that achieve near-perfect fidelity ($\le$1.5\% CER, 100\% identifier recall) and documenting the selection process transparently.
+The image rendering pipeline introduces design choices (font size, page width, line wrapping) that were fixed via the pilot study. A different specification might yield different results. We mitigate this by selecting parameters that achieve near-perfect fidelity ($\le$1.5\% CER, 100\% identifier recall) and documenting the selection process transparently.
 
 GPT-5-mini does not support \texttt{temperature=0}, so all outputs involve sampling noise. The 10/10 symmetric disagreement between conditions may partly reflect this randomness rather than genuine modality differences. Multiple runs per instance would be needed to disentangle these effects.
 
